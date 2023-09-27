@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "riT4zTATnLHM5JORVZ51GYyHLMdrBM3G7Myh4+pcOXTJ5hyRqj2AshITwSSCHmBVhIu6f+0jEYLajdanHsjw3g==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Me\\Projects\\proxy-tester\\ProxyTester.fsproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Me\\.nuget\\packages\\fsharp.core\\7.0.300\\fsharp.core.7.0.300.nupkg.sha512"
+  ],
+  "logs": []
+}
