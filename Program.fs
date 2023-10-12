@@ -4,23 +4,47 @@ open System
 open System.IO
 open System.Net
 open System.Net.Http
+open System.Globalization
+open CsvHelper
+open CsvHelper.Configuration
+open CsvHelper.Configuration.Attributes
+
+type ProxyInfo () =
+    let mutable proxyUri = ""
+    let mutable proxyUserName = ""
+    let mutable proxyPassword = ""
+
+    [<Index(0)>]
+    member this.ProxyUri
+        with get() = proxyUri
+        and set(value) = proxyUri <- value
+    
+    [<Index(1)>]
+    member this.ProxyUserName
+        with get() = proxyUserName
+        and set(value) = proxyUserName <- value
+
+    [<Index(2)>]
+    member this.ProxyPassword
+        with get() = proxyPassword
+        and set(value) = proxyPassword <- value
 
 let getCredentials(userName: string, password: string) =
-    if not (userName |> String.IsNullOrEmpty) then
+    if not (String.IsNullOrEmpty(userName)) && not (String.IsNullOrEmpty(password)) then
         new NetworkCredential(userName, password)
     else
         CredentialCache.DefaultNetworkCredentials
 
-let createHttpClientHandler(proxy: string, proxyUserName: string, proxyPassword: string) =
+let createHttpClientHandler(proxy: ProxyInfo) =
     let httpClientHandler = new HttpClientHandler()
-    httpClientHandler.UseProxy <- proxy <> "noproxy"
+    httpClientHandler.UseProxy <- proxy.ProxyUri <> "noproxy"
     if httpClientHandler.UseProxy then
-        httpClientHandler.Proxy <- new WebProxy(proxy)
-        httpClientHandler.Proxy.Credentials <- getCredentials(proxyUserName, proxyPassword)
+        httpClientHandler.Proxy <- new WebProxy(proxy.ProxyUri)
+        httpClientHandler.Proxy.Credentials <- getCredentials(proxy.ProxyUserName, proxy.ProxyPassword)
     httpClientHandler
 
-let testConnection(proxy: string, proxyUserName: string, proxyPassword: string, host: string) =
-    let httpClientHandler = createHttpClientHandler(proxy, proxyUserName, proxyPassword)
+let testConnection(proxy: ProxyInfo, host: string) =
+    let httpClientHandler = createHttpClientHandler(proxy)
     use client = new HttpClient(httpClientHandler)
     (
         try
@@ -30,24 +54,16 @@ let testConnection(proxy: string, proxyUserName: string, proxyPassword: string, 
         | ex -> ex.Message
     )
 
-let proxies = File.ReadAllLines "proxies.list"
-
-let hosts = File.ReadAllLines "hosts.list"
-
-let parseProxy (proxy) =
-    if proxy = "noproxy" then
-        ("noproxy", String.Empty, String.Empty)
-    else
-        let proxyUri = new Uri(proxy)
-        let proxyUserParts = proxyUri.UserInfo.Split(":")
-        let proxyUserName = proxyUserParts[0]
-        let proxyPassword = if proxyUserParts.Length > 1 then proxyUserParts[1] else ""
-        let proxy2 =
-            if proxyUri.Port > 0 then
-                String.Format("{0}://{1}:{2}", proxyUri.Scheme, proxyUri.Host, proxyUri.Port)
-            else
-                String.Format("{0}://{1}", proxyUri.Scheme, proxyUri.Host)
-        (proxy2, proxyUserName, proxyPassword)
+let loadProxies(fileName) =
+    let config = new CsvConfiguration(CultureInfo.InvariantCulture)
+    config.HasHeaderRecord <- false
+    config.Delimiter <- ";"
+    config.MissingFieldFound <- null
+    use reader = new StreamReader(fileName: string)
+    use csv = new CsvReader(reader, config)
+    (
+        csv.GetRecords<ProxyInfo>() |> Seq.toList
+    )
 
 let formatUserName (userName, password) =
     if (userName |> String.IsNullOrEmpty) then
@@ -55,12 +71,14 @@ let formatUserName (userName, password) =
     else
         $"{userName}:{password}"
 
+let hosts = File.ReadAllLines "hosts.list"
+
+let proxies = loadProxies("proxies.csv")
+
 for proxy in proxies do
     for host in hosts do
-        if not (proxy.StartsWith("#")) && not (host.StartsWith("#")) then
-            let (proxy2, proxyUserName, proxyPassword) = parseProxy(proxy)
-            let testResult = testConnection( proxy2, proxyUserName, proxyPassword, host)
-            printf "%s via %s, %s - " host proxy2 (formatUserName(proxyUserName, proxyPassword))
-            printfn "%s" testResult
+        let testResult = testConnection(proxy, host)
+        printf "%s via %s, %s - " host proxy.ProxyUri (formatUserName(proxy.ProxyUserName, proxy.ProxyPassword))
+        printfn "%s" testResult
 
 printfn "Done."

@@ -1,6 +1,0 @@
-# Supported special values: noproxy
-# TODO: Add support for default proxy
-noproxy
-http://user1:password1@someproxy.com:8080
-http://someproxy.com:8080
-https://someproxy.com:4277
